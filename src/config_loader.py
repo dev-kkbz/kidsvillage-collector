@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import yaml
 
 
 @dataclass
 class PathsConfig:
-    input_csv: str = "data/input/products.csv"
+    input_csv: str = ""
     output_dir: str = "output"
     message_template: str = "templates/message_template.txt"
 
@@ -48,9 +46,8 @@ class SystemConfig:
 
 def load_config(
     settings_path: str = "config/settings.yaml",
-    credentials_path: str = "config/credentials.yaml",
 ) -> SystemConfig:
-    """YAML 설정 파일을 로드하고 환경변수 오버라이드를 적용한다."""
+    """YAML 설정 파일을 로드한다. 인증 정보는 GUI에서 주입한다."""
     from src.resource import resource_path
 
     config = SystemConfig()
@@ -61,21 +58,7 @@ def load_config(
             data = yaml.safe_load(f) or {}
         _apply_settings(config, data)
 
-    # credentials는 번들 내부가 아닌 실행 디렉토리 기준으로 찾는다
-    creds_file = Path(credentials_path)
-    if creds_file.exists():
-        with open(creds_file) as f:
-            creds = yaml.safe_load(f) or {}
-        wholesale_creds = creds.get("wholesale", {})
-        if wholesale_creds.get("username"):
-            config.wholesale.username = wholesale_creds["username"]
-        if wholesale_creds.get("password"):
-            config.wholesale.password = wholesale_creds["password"]
-
-    # message_template도 번들 내부에서 찾는다
     config.paths.message_template = str(resource_path(config.paths.message_template))
-
-    _apply_env_overrides(config)
 
     return config
 
@@ -109,14 +92,3 @@ def _apply_settings(config: SystemConfig, data: dict) -> None:
         config.wholesale.login_form.pw_field = login_form["pw_field"]
 
 
-def _apply_env_overrides(config: SystemConfig) -> None:
-    env_map = {
-        "PM_WHOLESALE_USERNAME": lambda v: setattr(config.wholesale, "username", v),
-        "PM_WHOLESALE_PASSWORD": lambda v: setattr(config.wholesale, "password", v),
-        "PM_INPUT_CSV": lambda v: setattr(config.paths, "input_csv", v),
-        "PM_OUTPUT_DIR": lambda v: setattr(config.paths, "output_dir", v),
-    }
-    for env_key, setter in env_map.items():
-        value = os.environ.get(env_key)
-        if value:
-            setter(value)

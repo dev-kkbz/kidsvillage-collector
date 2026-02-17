@@ -1,5 +1,4 @@
 paths:
-  input_csv: "data/input/products.csv"
   output_dir: "output"
   message_template: "templates/message_template.txt"
 
