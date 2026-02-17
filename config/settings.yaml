@@ -1,0 +1,17 @@
+paths:
+  input_csv: "data/input/products.csv"
+  output_dir: "output"
+  message_template: "templates/message_template.txt"
+
+wholesale:
+  base_url: "https://kidsvillage.co.kr"
+  login_url: "https://kidsvillage.co.kr/bbs/login.php?url=/shop/"
+  selectors:
+    product_name: "#sit_title"
+    price: "#it_price"
+    detail_images: "#sit_inf_explan img"
+  login_form:
+    id_field: "mb_id"
+    pw_field: "mb_password"
+  request_delay_seconds: 1.5
+  download_wait_seconds: 10

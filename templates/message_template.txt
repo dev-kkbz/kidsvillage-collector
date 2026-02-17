@@ -1,0 +1,10 @@
+☑️ {brand} {product_name}
+
+- 가격
+{selling_price}
+
+- 컬러
+{colors}
+
+- 사이즈
+{sizes}
