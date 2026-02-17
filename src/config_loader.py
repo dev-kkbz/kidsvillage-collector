@@ -36,7 +36,6 @@ class WholesaleConfig:
     selectors: WholesaleSelectors = field(default_factory=WholesaleSelectors)
     login_form: LoginForm = field(default_factory=LoginForm)
     request_delay_seconds: float = 1.0
-    download_wait_seconds: int = 10
     username: str = ""
     password: str = ""
 
@@ -91,8 +90,6 @@ def _apply_settings(config: SystemConfig, data: dict) -> None:
         config.wholesale.login_url = ws["login_url"]
     if ws.get("request_delay_seconds") is not None:
         config.wholesale.request_delay_seconds = float(ws["request_delay_seconds"])
-    if ws.get("download_wait_seconds") is not None:
-        config.wholesale.download_wait_seconds = int(ws["download_wait_seconds"])
 
     selectors = ws.get("selectors", {})
     for key in ("product_name", "price", "sizes", "colors", "detail_images"):

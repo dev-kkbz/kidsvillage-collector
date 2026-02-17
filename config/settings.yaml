@@ -14,4 +14,3 @@ wholesale:
     id_field: "mb_id"
     pw_field: "mb_password"
   request_delay_seconds: 1.5
-  download_wait_seconds: 10

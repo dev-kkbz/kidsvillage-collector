@@ -4,14 +4,17 @@ import csv
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 from src.config_loader import SystemConfig
 from src.image_manager import ImageManager
 from src.message_builder import MessageBuilder
-from src.models import CsvRow, ProcessedProduct, ProductResult, ProductStatus
+from src.models import CsvRow, ProcessedProduct, ProductResult, ProductStatus, make_dir_name
 from src.scraper import ScrapeError, WholesaleScraper
 
 logger = logging.getLogger(__name__)
+
+ProgressCallback = Callable[[int, int, str], None]
 
 
 class ProductOrchestrator:
@@ -20,12 +23,20 @@ class ProductOrchestrator:
     CSV 로드 → 로그인 → 상품별 순차 처리 → summary 출력
     """
 
-    def __init__(self, config: SystemConfig) -> None:
+    def __init__(
+        self,
+        config: SystemConfig,
+        on_progress: ProgressCallback | None = None,
+    ) -> None:
         self._config = config
         self._output_dir = Path(config.paths.output_dir)
+        self._on_progress = on_progress
 
         self._scraper = WholesaleScraper(config.wholesale)
-        self._image_mgr = ImageManager(config.paths.output_dir)
+        self._image_mgr = ImageManager(
+            config.paths.output_dir,
+            session=self._scraper.session,
+        )
         self._message_builder = MessageBuilder(config.paths.message_template)
 
         self._results: list[ProductResult] = []
@@ -39,23 +50,24 @@ class ProductOrchestrator:
 
         logger.info("Loaded %d products from CSV", len(rows))
 
-        self._scraper.start()
-        try:
-            if not self._scraper.login():
-                logger.critical("Login failed, aborting")
-                return []
+        if not self._scraper.login():
+            logger.critical("Login failed, aborting")
+            return []
 
-            for idx, row in enumerate(rows, start=1):
-                logger.info("Processing %d/%d: %s", idx, len(rows), row.url)
-                result = self._process_single(row)
-                self._results.append(result)
+        total = len(rows)
+        for idx, row in enumerate(rows, start=1):
+            logger.info("Processing %d/%d: %s", idx, total, row.url)
 
-                status_icon = "OK" if result.status == ProductStatus.DONE else "FAIL"
-                logger.info(
-                    "[%s] %s → %s", status_icon, result.product_id, result.status.value
-                )
-        finally:
-            self._scraper.close()
+            if self._on_progress:
+                self._on_progress(idx, total, row.product_id)
+
+            result = self._process_single(row)
+            self._results.append(result)
+
+            status_icon = "OK" if result.status == ProductStatus.DONE else "FAIL"
+            logger.info(
+                "[%s] %s → %s", status_icon, result.product_id, result.status.value
+            )
 
         self._write_summary()
         self._log_final_stats()
@@ -76,15 +88,21 @@ class ProductOrchestrator:
             logger.error("Unexpected scrape error for %s: %s", row.url, e)
             return ProductResult(product_id, row.url, ProductStatus.FAILED_SCRAPE, str(e))
 
+        dir_name = make_dir_name(product_id, scraped.brand, scraped.product_name)
+        wholesale_int = self._parse_price(scraped.wholesale_price)
+
         # Phase 2: 이미지 다운로드
         try:
-            cookies = self._scraper.get_cookies_dict()
             local_images = self._image_mgr.download_images(
-                product_id, scraped.image_urls, cookies
+                dir_name, scraped.image_urls
             )
         except Exception as e:
             logger.error("Image download failed for %s: %s", product_id, e)
-            return ProductResult(product_id, row.url, ProductStatus.FAILED_IMAGE, str(e))
+            return ProductResult(
+                product_id, row.url, ProductStatus.FAILED_IMAGE, str(e),
+                brand=scraped.brand, product_name=scraped.product_name,
+                wholesale_price=wholesale_int, selling_price=row.selling_price,
+            )
 
         # Phase 3: 메시지 생성 + 파일 기록
         try:
@@ -101,14 +119,28 @@ class ProductOrchestrator:
             message = self._message_builder.build(processed)
             processed.message = message
 
-            message_path = self._image_mgr.get_product_dir(product_id) / "message.txt"
+            message_path = self._image_mgr.get_product_dir(dir_name) / "message.txt"
             message_path.write_text(message, encoding="utf-8")
             logger.info("Message saved to %s", message_path)
         except Exception as e:
             logger.error("Message build failed for %s: %s", product_id, e)
-            return ProductResult(product_id, row.url, ProductStatus.FAILED_MESSAGE, str(e))
+            return ProductResult(
+                product_id, row.url, ProductStatus.FAILED_MESSAGE, str(e),
+                brand=scraped.brand, product_name=scraped.product_name,
+                wholesale_price=wholesale_int, selling_price=row.selling_price,
+            )
 
-        return ProductResult(product_id, row.url, ProductStatus.DONE)
+        return ProductResult(
+            product_id, row.url, ProductStatus.DONE,
+            brand=scraped.brand, product_name=scraped.product_name,
+            wholesale_price=wholesale_int, selling_price=row.selling_price,
+        )
+
+    @staticmethod
+    def _parse_price(price_str: str) -> int:
+        """가격 문자열에서 숫자만 추출하여 int로 변환한다."""
+        digits = "".join(c for c in price_str if c.isdigit())
+        return int(digits) if digits else 0
 
     def _load_csv(self) -> list[CsvRow]:
         csv_path = Path(self._config.paths.input_csv)
@@ -145,21 +177,38 @@ class ProductOrchestrator:
         succeeded = [r for r in self._results if r.status == ProductStatus.DONE]
         failed = [r for r in self._results if r.status != ProductStatus.DONE]
 
+        total_margin = sum(r.margin for r in succeeded)
+
         lines = [
-            f"실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"전체: {len(self._results)}  성공: {len(succeeded)}  실패: {len(failed)}",
+            "=" * 60,
+            f"  실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"  전체: {len(self._results)}건  |  성공: {len(succeeded)}건  |  실패: {len(failed)}건",
+            f"  총 마진 합계: {total_margin:,}원",
+            "=" * 60,
             "",
-            "--- 성공 ---",
         ]
-        for r in succeeded:
-            lines.append(f"  {r.product_id} ({r.url})")
+
+        if succeeded:
+            lines.append("[ 성공 ]")
+            lines.append("-" * 60)
+            for r in succeeded:
+                lines.append(f"  {r.brand} {r.product_name}")
+                lines.append(f"    폴더: {r.dir_name}")
+                lines.append(
+                    f"    도매가: {r.wholesale_price:,}원  →  판매가: {r.selling_price:,}원  |  마진: {r.margin:,}원"
+                )
+                lines.append("")
 
         if failed:
-            lines.append("")
-            lines.append("--- 실패 ---")
+            lines.append("[ 실패 ]")
+            lines.append("-" * 60)
             for r in failed:
-                lines.append(f"  {r.product_id} [{r.status.value}] {r.error}")
+                label = f"{r.brand} {r.product_name}".strip() or r.product_id
+                lines.append(f"  {label}  [{r.status.value}]")
                 lines.append(f"    URL: {r.url}")
+                if r.error:
+                    lines.append(f"    오류: {r.error}")
+                lines.append("")
 
         summary_path.write_text("\n".join(lines), encoding="utf-8")
         logger.info("Summary written to %s", summary_path)

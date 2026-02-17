@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -72,3 +73,31 @@ class ProductResult:
     url: str
     status: ProductStatus
     error: str = ""
+    brand: str = ""
+    product_name: str = ""
+    wholesale_price: int = 0
+    selling_price: int = 0
+
+    @property
+    def margin(self) -> int:
+        return self.selling_price - self.wholesale_price
+
+    @property
+    def dir_name(self) -> str:
+        """product_id_brand_productname 형식의 디렉토리명을 생성한다."""
+        return make_dir_name(self.product_id, self.brand, self.product_name)
+
+
+def make_dir_name(product_id: str, brand: str, product_name: str) -> str:
+    """product_id, brand, product_name을 조합해 안전한 디렉토리명을 생성한다."""
+    parts = [product_id]
+    if brand:
+        parts.append(brand)
+    if product_name:
+        parts.append(product_name)
+    raw = "_".join(parts)
+    safe = re.sub(r'[\\/:*?"<>|]', "", raw)
+    safe = safe.strip().strip(".")
+    if len(safe) > 120:
+        safe = safe[:120]
+    return safe or product_id
