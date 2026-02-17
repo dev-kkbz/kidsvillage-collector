@@ -51,14 +51,17 @@ def load_config(
     credentials_path: str = "config/credentials.yaml",
 ) -> SystemConfig:
     """YAML 설정 파일을 로드하고 환경변수 오버라이드를 적용한다."""
+    from src.resource import resource_path
+
     config = SystemConfig()
 
-    settings_file = Path(settings_path)
+    settings_file = resource_path(settings_path)
     if settings_file.exists():
         with open(settings_file) as f:
             data = yaml.safe_load(f) or {}
         _apply_settings(config, data)
 
+    # credentials는 번들 내부가 아닌 실행 디렉토리 기준으로 찾는다
     creds_file = Path(credentials_path)
     if creds_file.exists():
         with open(creds_file) as f:
@@ -68,6 +71,9 @@ def load_config(
             config.wholesale.username = wholesale_creds["username"]
         if wholesale_creds.get("password"):
             config.wholesale.password = wholesale_creds["password"]
+
+    # message_template도 번들 내부에서 찾는다
+    config.paths.message_template = str(resource_path(config.paths.message_template))
 
     _apply_env_overrides(config)
 

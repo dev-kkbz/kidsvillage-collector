@@ -7,3 +7,8 @@ venv/
 config/credentials.yaml
 output/
 logs/
+
+# PyInstaller
+dist/
+build_temp/
+*.spec.bak
