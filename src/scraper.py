@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -88,12 +89,13 @@ class WholesaleScraper:
             brand = self._get_table_value(soup, "브랜드")
             colors = self._get_table_list(soup, "색상")
             sizes = self._get_table_list(soup, "사이즈")
+            option_prices = self._get_option_prices(soup, url)
             image_urls = self._get_image_urls(soup, sel.detail_images)
 
             logger.info(
-                "Scraped %s: brand=%s, name=%s, price=%s원, %d sizes, %d colors, %d images",
+                "Scraped %s: brand=%s, name=%s, price=%s원, %d sizes, %d colors, %d option_prices, %d images",
                 product_id, brand, product_name, wholesale_price,
-                len(sizes), len(colors), len(image_urls),
+                len(sizes), len(colors), len(option_prices), len(image_urls),
             )
 
             return ScrapedProduct(
@@ -104,6 +106,7 @@ class WholesaleScraper:
                 sizes=sizes,
                 colors=colors,
                 image_urls=image_urls,
+                option_prices=option_prices,
             )
         except ScrapeError:
             raise
@@ -167,6 +170,90 @@ class WholesaleScraper:
                     return [v.strip() for v in raw.split("/") if v.strip()]
         logger.warning("  th[%s] list → NOT FOUND or empty", header_text)
         return []
+
+    def _get_option_prices(self, soup: BeautifulSoup, product_url: str) -> list[int]:
+        """옵션 추가가격을 추출한다.
+
+        그누보드5 itemoption.php AJAX를 호출하여
+        하위 옵션(사이즈 등)의 추가가격을 가져온다.
+        응답 option value 형식: "옵션명,추가가격,재고수"
+        """
+        option_selects = soup.select("select.it_option")
+        if len(option_selects) < 2:
+            return []
+
+        first_select = option_selects[0]
+        option_values = [
+            opt.get("value", "").strip()
+            for opt in first_select.find_all("option")
+            if opt.get("value", "").strip()
+        ]
+        if not option_values:
+            return []
+
+        it_id = parse_qs(urlparse(product_url).query).get("it_id", [""])[0]
+        if not it_id:
+            return []
+
+        g5_shop_url = self._config.base_url + "/shop"
+        for script in soup.find_all("script"):
+            text = script.string or ""
+            m = re.search(r'g5_shop_url\s*=\s*["\']([^"\']+)', text)
+            if m:
+                g5_shop_url = m.group(1)
+                break
+
+        post_url = g5_shop_url + "/itemoption.php"
+        sel_count = len(option_selects)
+        op_title = first_select.find("option").get_text(strip=True) if first_select.find("option") else "선택"
+
+        all_prices: set[int] = set()
+        for opt_val in option_values:
+            try:
+                resp = self._session.post(post_url, data={
+                    "it_id": it_id,
+                    "opt_id": opt_val,
+                    "idx": "0",
+                    "sel_count": str(sel_count),
+                    "op_title": op_title,
+                }, timeout=10)
+                logger.debug(
+                    "  [옵션] POST opt_id=%s → status=%d, len=%d",
+                    opt_val, resp.status_code, len(resp.text),
+                )
+
+                if resp.status_code == 200 and resp.text.strip():
+                    prices = self._parse_itemoption_response(resp.text)
+                    all_prices.update(prices)
+            except Exception as e:
+                logger.debug("  [옵션] opt_id=%s 호출 실패: %s", opt_val, e)
+
+        result = sorted(all_prices)
+        logger.debug("  [옵션] 전체 추가가격: %s", result)
+        return result
+
+    @staticmethod
+    def _parse_itemoption_response(html: str) -> list[int]:
+        """itemoption.php 응답에서 추가가격을 추출한다.
+
+        option value 형식: "옵션명,추가가격,재고수"
+        """
+        prices: set[int] = set()
+        option_soup = BeautifulSoup(html, "lxml")
+        for opt in option_soup.find_all("option"):
+            val = opt.get("value", "").strip()
+            if not val:
+                continue
+            parts = val.split(",")
+            if len(parts) >= 2:
+                try:
+                    price = int(parts[1])
+                    if price != 0:
+                        prices.add(price)
+                except (ValueError, IndexError):
+                    pass
+        logger.debug("  [옵션] 추출된 추가가격: %s", sorted(prices))
+        return sorted(prices)
 
     def _get_image_urls(self, soup: BeautifulSoup, selector: str) -> list[str]:
         if not selector:

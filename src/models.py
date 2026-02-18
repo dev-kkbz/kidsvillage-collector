@@ -52,6 +52,7 @@ class ScrapedProduct:
     sizes: list[str] = field(default_factory=list)
     colors: list[str] = field(default_factory=list)
     image_urls: list[str] = field(default_factory=list)
+    option_prices: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -63,6 +64,7 @@ class ProcessedProduct:
     brand: str = ""
     sizes: list[str] = field(default_factory=list)
     colors: list[str] = field(default_factory=list)
+    option_prices: list[int] = field(default_factory=list)
     local_image_paths: list[str] = field(default_factory=list)
     message: str = ""
 

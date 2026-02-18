@@ -5,7 +5,6 @@ import logging
 import platform
 import queue
 import subprocess
-import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -118,13 +117,24 @@ class App(tk.Tk):
     # ─── 로깅 연결 ──────────────────────────────────────
 
     def _setup_logging(self) -> None:
-        handler = QueueHandler(self._log_queue)
-        handler.setFormatter(logging.Formatter(
-            "[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
-        ))
+        fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+
+        gui_handler = QueueHandler(self._log_queue)
+        gui_handler.setFormatter(fmt)
+        gui_handler.setLevel(logging.INFO)
+
+        log_dir = Path.cwd() / "logs"
+        log_dir.mkdir(exist_ok=True)
+        file_handler = logging.FileHandler(
+            log_dir / "debug.log", mode="w", encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt)
+        file_handler.setLevel(logging.DEBUG)
+
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)
-        root_logger.addHandler(handler)
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(gui_handler)
+        root_logger.addHandler(file_handler)
 
     def _poll_log_queue(self) -> None:
         while True:

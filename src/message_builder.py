@@ -39,11 +39,12 @@ class MessageBuilder:
         """상품 데이터를 기반으로 메시지 문자열을 생성한다."""
         sizes_str = ",".join(product.sizes) if product.sizes else ""
         colors_str = " ".join(product.colors) if product.colors else ""
+        price_str = self._format_price(product.selling_price, product.option_prices)
 
         message = self._template.format(
             brand=product.brand,
             product_name=product.product_name,
-            selling_price=product.selling_price,
+            selling_price=price_str,
             sizes=sizes_str,
             colors=colors_str,
         )
@@ -52,3 +53,10 @@ class MessageBuilder:
 
         logger.info("Message built for %s (%d chars)", product.product_id, len(result))
         return result
+
+    @staticmethod
+    def _format_price(selling_price: int, option_prices: list[int]) -> str:
+        if not option_prices:
+            return str(selling_price)
+        extras = " / ".join(f"+{p}" for p in option_prices)
+        return f"{selling_price} / {extras}"

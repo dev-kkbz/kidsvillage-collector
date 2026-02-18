@@ -116,6 +116,7 @@ class ProductOrchestrator:
                 brand=scraped.brand,
                 sizes=scraped.sizes,
                 colors=scraped.colors,
+                option_prices=scraped.option_prices,
                 local_image_paths=local_images,
             )
             message = self._message_builder.build(processed)
