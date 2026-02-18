@@ -61,7 +61,7 @@ class ProductOrchestrator:
             if self._on_progress:
                 self._on_progress(idx, total, row.product_id)
 
-            result = self._process_single(row)
+            result = self._process_single(row, seq=idx)
             self._results.append(result)
 
             status_icon = "OK" if result.status == ProductStatus.DONE else "FAIL"
@@ -75,7 +75,7 @@ class ProductOrchestrator:
 
         return self._results
 
-    def _process_single(self, row: CsvRow) -> ProductResult:
+    def _process_single(self, row: CsvRow, *, seq: int = 0) -> ProductResult:
         """단일 상품을 처리한다."""
         product_id = row.product_id
 
@@ -84,12 +84,12 @@ class ProductOrchestrator:
             scraped = self._scraper.scrape_product(row.url)
         except ScrapeError as e:
             logger.error("Scrape failed for %s: %s", row.url, e.reason)
-            return ProductResult(product_id, row.url, ProductStatus.FAILED_SCRAPE, str(e))
+            return ProductResult(product_id, row.url, ProductStatus.FAILED_SCRAPE, str(e), seq=seq)
         except Exception as e:
             logger.error("Unexpected scrape error for %s: %s", row.url, e)
-            return ProductResult(product_id, row.url, ProductStatus.FAILED_SCRAPE, str(e))
+            return ProductResult(product_id, row.url, ProductStatus.FAILED_SCRAPE, str(e), seq=seq)
 
-        dir_name = make_dir_name(product_id, scraped.brand, scraped.product_name)
+        dir_name = make_dir_name(scraped.brand, scraped.product_name, seq or None)
         wholesale_int = self._parse_price(scraped.wholesale_price)
         selling_price = wholesale_int + row.margin
 
@@ -104,6 +104,7 @@ class ProductOrchestrator:
                 product_id, row.url, ProductStatus.FAILED_IMAGE, str(e),
                 brand=scraped.brand, product_name=scraped.product_name,
                 wholesale_price=wholesale_int, selling_price=selling_price,
+                seq=seq,
             )
 
         # Phase 3: 메시지 생성 + 파일 기록
@@ -131,12 +132,14 @@ class ProductOrchestrator:
                 product_id, row.url, ProductStatus.FAILED_MESSAGE, str(e),
                 brand=scraped.brand, product_name=scraped.product_name,
                 wholesale_price=wholesale_int, selling_price=selling_price,
+                seq=seq,
             )
 
         return ProductResult(
             product_id, row.url, ProductStatus.DONE,
             brand=scraped.brand, product_name=scraped.product_name,
             wholesale_price=wholesale_int, selling_price=selling_price,
+            seq=seq,
         )
 
     @staticmethod
@@ -220,18 +223,20 @@ class ProductOrchestrator:
         if not succeeded:
             return
 
-        parts: list[str] = []
+        sections: list[str] = []
         for r in succeeded:
             msg_path = self._image_mgr.get_product_dir(r.dir_name) / "message.txt"
-            if msg_path.exists():
-                parts.append(msg_path.read_text(encoding="utf-8").strip())
+            if not msg_path.exists():
+                continue
+            body = msg_path.read_text(encoding="utf-8").strip()
+            header = f"{'=' * 40} [{r.seq:03d}]"
+            sections.append(f"{header}\n\n{body}")
 
-        if not parts:
+        if not sections:
             return
 
-        separator = "\n\n" + "=" * 40 + "\n\n"
         combined_path = self._output_dir / "messages.txt"
-        combined_path.write_text(separator.join(parts) + "\n", encoding="utf-8")
+        combined_path.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
         logger.info("Combined messages written to %s", combined_path)
 
     def _log_final_stats(self) -> None:

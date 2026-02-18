@@ -79,6 +79,7 @@ class ProductResult:
     product_name: str = ""
     wholesale_price: int = 0
     selling_price: int = 0
+    seq: int = 0
 
     @property
     def margin(self) -> int:
@@ -86,13 +87,15 @@ class ProductResult:
 
     @property
     def dir_name(self) -> str:
-        """product_id_brand_productname 형식의 디렉토리명을 생성한다."""
-        return make_dir_name(self.product_id, self.brand, self.product_name)
+        """순번_브랜드_상품명 형식의 디렉토리명을 생성한다."""
+        return make_dir_name(self.brand, self.product_name, self.seq or None)
 
 
-def make_dir_name(product_id: str, brand: str, product_name: str) -> str:
-    """product_id, brand, product_name을 조합해 안전한 디렉토리명을 생성한다."""
-    parts = [product_id]
+def make_dir_name(brand: str, product_name: str, seq: int | None = None) -> str:
+    """brand, product_name을 조합해 안전한 디렉토리명을 생성한다."""
+    parts: list[str] = []
+    if seq is not None:
+        parts.append(f"{seq:03d}")
     if brand:
         parts.append(brand)
     if product_name:
@@ -102,4 +105,4 @@ def make_dir_name(product_id: str, brand: str, product_name: str) -> str:
     safe = safe.strip().strip(".")
     if len(safe) > 120:
         safe = safe[:120]
-    return safe or product_id
+    return safe or "unknown"
