@@ -36,4 +36,4 @@ jobs:
           path: |
             dist/KidsVillage_Collector.exe
             dist/사용설명서.md
-            dist/products_example.csv
+            dist/input_example.csv
