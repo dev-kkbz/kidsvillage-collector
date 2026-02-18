@@ -11,6 +11,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+import yaml
+
 from src.config_loader import load_config
 from src.models import ProductStatus
 from src.orchestrator import ProductOrchestrator
@@ -41,6 +43,7 @@ class App(tk.Tk):
 
         self._build_ui()
         self._setup_logging()
+        self._load_credentials()
         self.after(self.POLL_MS, self._poll_log_queue)
 
     # ─── UI 구성 ────────────────────────────────────────
@@ -134,6 +137,23 @@ class App(tk.Tk):
             self._log_text.see("end")
             self._log_text.configure(state="disabled")
         self.after(self.POLL_MS, self._poll_log_queue)
+
+    # ─── 인증 정보 ──────────────────────────────────────
+
+    CREDENTIALS_FILE = ".credentials.yaml"
+
+    def _load_credentials(self) -> None:
+        path = Path.cwd() / self.CREDENTIALS_FILE
+        if not path.exists():
+            return
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            if data.get("username"):
+                self._var_username.set(data["username"])
+            if data.get("password"):
+                self._var_password.set(data["password"])
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to load %s: %s", self.CREDENTIALS_FILE, e)
 
     # ─── 파일 탐색 ──────────────────────────────────────
 
