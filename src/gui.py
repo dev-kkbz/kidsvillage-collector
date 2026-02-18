@@ -140,13 +140,14 @@ class App(tk.Tk):
     def _browse_csv(self) -> None:
         path = filedialog.askopenfilename(
             title="CSV 파일 선택",
+            initialdir=Path.cwd(),
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
         )
         if path:
             self._var_csv.set(path)
 
     def _browse_output(self) -> None:
-        path = filedialog.askdirectory(title="출력 폴더 선택")
+        path = filedialog.askdirectory(title="출력 폴더 선택", initialdir=Path.cwd())
         if path:
             self._var_output.set(path)
 

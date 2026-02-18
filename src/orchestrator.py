@@ -70,6 +70,7 @@ class ProductOrchestrator:
             )
 
         self._write_summary()
+        self._write_combined_messages()
         self._log_final_stats()
 
         return self._results
@@ -179,13 +180,10 @@ class ProductOrchestrator:
         succeeded = [r for r in self._results if r.status == ProductStatus.DONE]
         failed = [r for r in self._results if r.status != ProductStatus.DONE]
 
-        total_margin = sum(r.margin for r in succeeded)
-
         lines = [
             "=" * 60,
             f"  실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"  전체: {len(self._results)}건  |  성공: {len(succeeded)}건  |  실패: {len(failed)}건",
-            f"  총 마진 합계: {total_margin:,}원",
             "=" * 60,
             "",
         ]
@@ -214,6 +212,26 @@ class ProductOrchestrator:
 
         summary_path.write_text("\n".join(lines), encoding="utf-8")
         logger.info("Summary written to %s", summary_path)
+
+    def _write_combined_messages(self) -> None:
+        """성공한 상품들의 message.txt를 하나로 합쳐 messages.txt로 저장한다."""
+        succeeded = [r for r in self._results if r.status == ProductStatus.DONE]
+        if not succeeded:
+            return
+
+        parts: list[str] = []
+        for r in succeeded:
+            msg_path = self._image_mgr.get_product_dir(r.dir_name) / "message.txt"
+            if msg_path.exists():
+                parts.append(msg_path.read_text(encoding="utf-8").strip())
+
+        if not parts:
+            return
+
+        separator = "\n\n" + "=" * 40 + "\n\n"
+        combined_path = self._output_dir / "messages.txt"
+        combined_path.write_text(separator.join(parts) + "\n", encoding="utf-8")
+        logger.info("Combined messages written to %s", combined_path)
 
     def _log_final_stats(self) -> None:
         total = len(self._results)
