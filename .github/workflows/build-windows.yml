@@ -24,8 +24,16 @@ jobs:
         run: |
           pyinstaller build.spec --distpath dist --workpath build_temp --clean -y
 
+      - name: Copy extras
+        run: |
+          copy docs\USER_GUIDE.md dist\사용설명서.md
+          echo url,margin> dist\input_example.csv
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: KidsVillage_Collector
-          path: dist/KidsVillage_Collector.exe
+          path: |
+            dist/KidsVillage_Collector.exe
+            dist/사용설명서.md
+            dist/products_example.csv
