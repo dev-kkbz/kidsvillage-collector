@@ -21,7 +21,7 @@ class ProductStatus(Enum):
 @dataclass
 class CsvRow:
     url: str
-    selling_price: int
+    margin: int = 0
 
     @property
     def product_id(self) -> str:

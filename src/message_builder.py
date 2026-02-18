@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 class MessageBuilder:
     """템플릿 기반으로 상품 전송용 메시지를 생성한다.
 
-    가격은 CSV의 selling_price를 사용하며,
-    스크래핑한 도매가는 포함하지 않는다.
+    가격은 도매가 + CSV margin으로 산출된 판매가를 사용한다.
     """
 
     DEFAULT_TEMPLATE = (

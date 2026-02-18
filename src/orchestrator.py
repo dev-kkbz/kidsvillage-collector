@@ -90,6 +90,7 @@ class ProductOrchestrator:
 
         dir_name = make_dir_name(product_id, scraped.brand, scraped.product_name)
         wholesale_int = self._parse_price(scraped.wholesale_price)
+        selling_price = wholesale_int + row.margin
 
         # Phase 2: 이미지 다운로드
         try:
@@ -101,7 +102,7 @@ class ProductOrchestrator:
             return ProductResult(
                 product_id, row.url, ProductStatus.FAILED_IMAGE, str(e),
                 brand=scraped.brand, product_name=scraped.product_name,
-                wholesale_price=wholesale_int, selling_price=row.selling_price,
+                wholesale_price=wholesale_int, selling_price=selling_price,
             )
 
         # Phase 3: 메시지 생성 + 파일 기록
@@ -110,7 +111,7 @@ class ProductOrchestrator:
                 product_id=scraped.product_id,
                 product_name=scraped.product_name,
                 wholesale_price=scraped.wholesale_price,
-                selling_price=row.selling_price,
+                selling_price=selling_price,
                 brand=scraped.brand,
                 sizes=scraped.sizes,
                 colors=scraped.colors,
@@ -127,13 +128,13 @@ class ProductOrchestrator:
             return ProductResult(
                 product_id, row.url, ProductStatus.FAILED_MESSAGE, str(e),
                 brand=scraped.brand, product_name=scraped.product_name,
-                wholesale_price=wholesale_int, selling_price=row.selling_price,
+                wholesale_price=wholesale_int, selling_price=selling_price,
             )
 
         return ProductResult(
             product_id, row.url, ProductStatus.DONE,
             brand=scraped.brand, product_name=scraped.product_name,
-            wholesale_price=wholesale_int, selling_price=row.selling_price,
+            wholesale_price=wholesale_int, selling_price=selling_price,
         )
 
     @staticmethod
@@ -153,20 +154,21 @@ class ProductOrchestrator:
             reader = csv.DictReader(f)
             for line_num, record in enumerate(reader, start=2):
                 url = record.get("url", "").strip()
-                price_str = record.get("selling_price", "").strip()
+                margin_str = record.get("margin", "").strip()
 
                 if not url:
                     logger.warning("Line %d: empty url, skipping", line_num)
                     continue
                 try:
-                    selling_price = int(price_str)
+                    margin = int(margin_str)
                 except (ValueError, TypeError):
                     logger.warning(
-                        "Line %d: invalid selling_price '%s', skipping", line_num, price_str
+                        "Line %d: invalid margin '%s', skipping",
+                        line_num, margin_str,
                     )
                     continue
 
-                rows.append(CsvRow(url=url, selling_price=selling_price))
+                rows.append(CsvRow(url=url, margin=margin))
 
         return rows
 

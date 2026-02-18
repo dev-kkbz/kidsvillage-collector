@@ -98,7 +98,7 @@ output/
 | 컬럼명 | 타입 | 필수 | 설명 |
 |---------|------|------|------|
 | `url` | string | Y | 도매 상품 상세 페이지 URL (Scraper가 직접 접근) |
-| `selling_price` | integer | Y | 판매희망가 (도매가 + 마진, 메시지에 노출되는 최종 가격) |
+| `margin` | integer | Y | 마진 금액 (도매가 + margin = 판매가로 자동 계산) |
 
 상품 식별자(폴더명)는 URL에서 추출하거나 구현 모델이 적절히 생성한다.
 
@@ -112,7 +112,7 @@ output/
 - 이미지는 별도 URL 목록이 아닌, 상세 페이지의 다운로드 버튼을 통해 획득
 
 **ProcessedProduct** (ScrapedProduct + CSV 입력 + 로컬 처리 결과):
-- 위 필드 + `selling_price` (CSV), `local_image_paths[]`, `message`
+- 위 필드 + `selling_price` (도매가 + margin으로 산출), `local_image_paths[]`, `message`
 - `selling_price`가 메시지에 표시되는 최종 가격
 
 ---
@@ -152,7 +152,7 @@ Scraper가 다운로드한 이미지 파일의 정리 및 로컬 저장.
 상품 데이터로부터 텍스트 메시지 생성.
 
 - 템플릿 기반 (`templates/message_template.txt`)
-- **가격은 CSV의 `selling_price`를 사용** (스크래핑한 도매가가 아님)
+- **가격은 도매가 + CSV의 margin으로 산출된 판매가를 사용**
 - 빈 필드는 해당 줄 제거
 - 가격은 천 단위 콤마 적용
 - 리스트 필드(사이즈, 컬러)는 `/`로 조인
@@ -201,11 +201,12 @@ wholesale:
 ```
 1. 설정 로드 + CSV 로드
 2. 도매 로그인
-3. For each CSV row (url, selling_price):
+3. For each CSV row (url, margin):
    a. URL로 상품 상세 수집 (Scraper)
-   b. 이미지 다운로드 → 상품 폴더에 저장 (Image Manager)
-   c. 메시지 생성 (selling_price 사용) → 상품 폴더에 message.txt 기록 (Message Builder)
-   d. 실패 시 → 로그 기록, 다음 상품으로 진행
+   b. 판매가 산출 (도매가 + margin)
+   c. 이미지 다운로드 → 상품 폴더에 저장 (Image Manager)
+   d. 메시지 생성 (산출된 판매가 사용) → 상품 폴더에 message.txt 기록 (Message Builder)
+   e. 실패 시 → 로그 기록, 다음 상품으로 진행
 4. summary.txt 출력 (성공/실패 수, 상품 목록)
 ```
 

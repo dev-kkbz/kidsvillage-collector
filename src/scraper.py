@@ -184,4 +184,4 @@ class WholesaleScraper:
     @staticmethod
     def _extract_product_id(url: str) -> str:
         from src.models import CsvRow
-        return CsvRow(url=url, selling_price=0).product_id
+        return CsvRow(url=url).product_id

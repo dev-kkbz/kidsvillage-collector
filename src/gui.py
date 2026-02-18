@@ -65,7 +65,7 @@ class App(tk.Tk):
         )
 
         ttk.Label(input_frame, text="CSV 파일:").grid(row=2, column=0, sticky="e", **pad)
-        self._var_csv = tk.StringVar(value="data/input/products.csv")
+        self._var_csv = tk.StringVar()
         ttk.Entry(input_frame, textvariable=self._var_csv, width=30).grid(
             row=2, column=1, sticky="w", **pad
         )
@@ -74,7 +74,7 @@ class App(tk.Tk):
         )
 
         ttk.Label(input_frame, text="출력 폴더:").grid(row=3, column=0, sticky="e", **pad)
-        self._var_output = tk.StringVar(value="output")
+        self._var_output = tk.StringVar()
         ttk.Entry(input_frame, textvariable=self._var_output, width=30).grid(
             row=3, column=1, sticky="w", **pad
         )
