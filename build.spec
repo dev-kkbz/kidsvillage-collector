@@ -1,24 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec — 키즈빌리지 상품 수집기 (single-file .exe)."""
+"""PyInstaller spec — 키즈빌리지 상품 수집기 (Windows one-file EXE)."""
+from PyInstaller.utils.hooks import collect_data_files
+
+certifi_datas = collect_data_files("certifi")
 
 a = Analysis(
-    ['src/gui.py'],
-    pathex=['.'],
+    ["run.py"],
+    pathex=["."],
     binaries=[],
     datas=[
-        ('config/settings.yaml', 'config'),
-        ('templates/message_template.txt', 'templates'),
-    ],
+        ("config/settings.yaml", "config"),
+        ("templates/message_template.txt", "templates"),
+    ] + certifi_datas,
     hiddenimports=[
-        'src',
-        'src.resource',
-        'src.config_loader',
-        'src.image_manager',
-        'src.message_builder',
-        'src.models',
-        'src.orchestrator',
-        'src.scraper',
-        'lxml._elementpath',
+        "src",
+        "src.resource",
+        "src.config_loader",
+        "src.image_manager",
+        "src.message_builder",
+        "src.models",
+        "src.orchestrator",
+        "src.scraper",
+        "lxml._elementpath",
     ],
     hookspath=[],
     runtime_hooks=[],
@@ -34,10 +37,10 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='KidsVillage_Collector',
+    name="KidsVillage_Collector",
     debug=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     icon=None,
 )
