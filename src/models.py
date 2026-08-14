@@ -25,15 +25,10 @@ class CsvRow:
 
     @property
     def product_id(self) -> str:
-        """URL에서 상품 식별자를 추출한다.
-
-        URL 쿼리 파라미터 중 it_id, product_no 등을 우선 사용하고,
-        없으면 URL 경로의 마지막 세그먼트를 사용한다.
-        """
         parsed = urlparse(self.url)
         qs = parse_qs(parsed.query)
         for key in ("it_id", "product_no", "id"):
-            if key in qs:
+            if key in qs and qs[key]:
                 return qs[key][0]
         path_parts = Path(parsed.path).parts
         if path_parts:
@@ -80,6 +75,8 @@ class ProductResult:
     wholesale_price: int = 0
     selling_price: int = 0
     seq: int = 0
+    image_count: int = 0
+    expected_image_count: int = 0
 
     @property
     def margin(self) -> int:
@@ -87,12 +84,10 @@ class ProductResult:
 
     @property
     def dir_name(self) -> str:
-        """순번_브랜드_상품명 형식의 디렉토리명을 생성한다."""
         return make_dir_name(self.brand, self.product_name, self.seq or None)
 
 
 def make_dir_name(brand: str, product_name: str, seq: int | None = None) -> str:
-    """brand, product_name을 조합해 안전한 디렉토리명을 생성한다."""
     parts: list[str] = []
     if seq is not None:
         parts.append(f"{seq:03d}")

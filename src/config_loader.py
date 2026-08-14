@@ -44,22 +44,19 @@ class SystemConfig:
     wholesale: WholesaleConfig = field(default_factory=WholesaleConfig)
 
 
-def load_config(
-    settings_path: str = "config/settings.yaml",
-) -> SystemConfig:
+def load_config(settings_path: str = "config/settings.yaml") -> SystemConfig:
     """YAML 설정 파일을 로드한다. 인증 정보는 GUI에서 주입한다."""
     from src.resource import resource_path
 
     config = SystemConfig()
-
     settings_file = resource_path(settings_path)
+
     if settings_file.exists():
-        with open(settings_file) as f:
+        with open(settings_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         _apply_settings(config, data)
 
     config.paths.message_template = str(resource_path(config.paths.message_template))
-
     return config
 
 
@@ -74,7 +71,7 @@ def _apply_settings(config: SystemConfig, data: dict) -> None:
 
     ws = data.get("wholesale", {})
     if ws.get("base_url"):
-        config.wholesale.base_url = ws["base_url"]
+        config.wholesale.base_url = str(ws["base_url"]).rstrip("/")
     if ws.get("login_url"):
         config.wholesale.login_url = ws["login_url"]
     if ws.get("request_delay_seconds") is not None:
@@ -90,5 +87,3 @@ def _apply_settings(config: SystemConfig, data: dict) -> None:
         config.wholesale.login_form.id_field = login_form["id_field"]
     if login_form.get("pw_field"):
         config.wholesale.login_form.pw_field = login_form["pw_field"]
-
-
